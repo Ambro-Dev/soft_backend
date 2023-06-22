@@ -20,10 +20,11 @@ const imageRoutes = require("./controllers/pictureController");
 const filesRoutes = require("./controllers/filesController");
 const io = require("socket.io")(http, {
   cors: {
-    origin: ["https://ud.ambro.dev", "https://admin.socket.io"],
+    origin: ["http://localhost:3000", "https://admin.socket.io"],
     methods: ["GET", "POST"],
     credentials: true,
   },
+  path: "/socket",
 });
 const crypto = require("crypto");
 const { GridFsStorage } = require("multer-gridfs-storage");
