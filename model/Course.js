@@ -11,6 +11,7 @@ const eventSchema = new mongoose.Schema(
     end: {
       type: Date,
     },
+    inCall: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     createdAt: { type: Date, default: Date.now },
     url: { type: String },
     className: { type: String, default: "success" },

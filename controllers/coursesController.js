@@ -17,11 +17,9 @@ const createNewCourse = async (req, res) => {
   }
   const teacher = await User.findById(req.body.teacherId);
   if (!teacher) {
-    res
-      .status(400)
-      .json({
-        message: "No such teacher or provided id does not belong to teacher",
-      });
+    res.status(400).json({
+      message: "No such teacher or provided id does not belong to teacher",
+    });
   }
 
   try {
@@ -34,6 +32,18 @@ const createNewCourse = async (req, res) => {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
   }
+};
+
+const getCourses = async (req, res) => {
+  const courses = await Course.find()
+    .populate("teacherId", "name surname")
+    .populate({
+      path: "members",
+      select: "email",
+    })
+    .select("name teacherId events");
+  if (!courses) return res.status(204).json({ message: "No courses found." });
+  res.json(courses);
 };
 
 const getCourse = async (req, res) => {
@@ -49,18 +59,74 @@ const getCourse = async (req, res) => {
   res.json(course);
 };
 
+const editCourse = async (req, res) => {
+  if (!req?.body?.course) {
+    return res.status(400).json({ message: "ID of the course is required" });
+  }
+  const course = await Course.findById(req.body.course);
+  if (!course) {
+    return res.status(400).json({
+      message: "No such course or provided id does not belong to course",
+    });
+  }
+
+  try {
+    const { description, picture } = req.body;
+
+    if (description) course.description = description;
+    if (picture) course.pic = picture;
+
+    await course.save();
+
+    res.json({ message: "Course changed successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const createCourseAdmin = async (req, res) => {
+  console.log(req.body);
+  if (!req?.body?.name || !req?.body?.teacherId) {
+    return {
+      status: 400,
+      message: "Name of the course and teacher are required",
+    };
+  }
+  const teacher = await User.findById(req.body.teacherId);
+  if (!teacher) {
+    return {
+      status: 400,
+      message: "No such teacher or provided id does not belong to teacher",
+    };
+  }
+
+  try {
+    const { name, teacherId, description, pic } = req.body;
+    // Create the course in the database
+    const course = await Course.create({ name, teacherId, description, pic });
+
+    return { status: 201, message: `New course ${course} created!` };
+  } catch (err) {
+    console.error(err);
+    return { status: 500, message: "Internal server error" };
+  }
+};
+
 const getCourseForEvent = async (req, res) => {
   if (!req?.params?.id)
     return res.status(400).json({ message: "Event ID required." });
 
-    const eventId = req.params.id;
-    const course = await Course.findOne({
-      events: { $elemMatch: { _id: eventId } }
-    }).exec();
-    
-    if (!course) {
-      return res.status(204).json({ message: `No course found for event ID ${eventId}` });
-    }
+  const eventId = req.params.id;
+  const course = await Course.findOne({
+    events: { $elemMatch: { _id: eventId } },
+  }).exec();
+
+  if (!course) {
+    return res
+      .status(204)
+      .json({ message: `No course found for event ID ${eventId}` });
+  }
   res.json(course);
 };
 
@@ -145,7 +211,6 @@ const getAllCourseMembers = async (req, res) => {
       _id: member._id,
       name: member.name,
       surname: member.surname,
-      studentNumber: member.studentNumber,
       picture: member.picture,
     }));
     res.json(members);
@@ -153,6 +218,57 @@ const getAllCourseMembers = async (req, res) => {
     console.error(err);
     res.status(500).json({ message: "Server error" });
   }
+};
+
+const removeCourseMembers = async (req, res) => {
+  try {
+    const courseId = req.params.id;
+    const memberIds = req.body.memberIds;
+
+    const course = await Course.findById(courseId);
+
+    // Remove the specified members from the course's members array
+    course.members.pull(...memberIds);
+
+    await course.save();
+
+    res.status(200).json({ message: "Members removed from course" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const addCourseMembers = async (req, res) => {
+  try {
+    const courseId = req.params.id;
+    const memberIds = req.body.memberIds;
+
+    const course = await Course.findById(courseId);
+
+    // Add the specified members to the course's members array
+    course.members.push(...memberIds);
+
+    await course.save();
+
+    res.json({ message: "Members added to course" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+const deleteCourse = async (req, res) => {
+  if (!req?.params?.id)
+    return res.status(400).json({ message: "Course ID required" });
+  const course = await Course.findOne({ _id: req.params.id }).exec();
+  if (!course) {
+    return res
+      .status(204)
+      .json({ message: `Course ID ${req.params.id} not found` });
+  }
+  const result = await course.deleteOne({ _id: req.params.id });
+  res.json(result);
 };
 
 module.exports = {
@@ -163,5 +279,11 @@ module.exports = {
   getAllCourseMembers,
   getCourseTeacher,
   getAllTeacherCourses,
-  getCourseForEvent
+  getCourseForEvent,
+  removeCourseMembers,
+  addCourseMembers,
+  deleteCourse,
+  createCourseAdmin,
+  editCourse,
+  getCourses,
 };

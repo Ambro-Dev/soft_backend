@@ -14,23 +14,17 @@ const mongoose = require("mongoose");
 const connectDB = require("./config/dbConn");
 const User = require("./model/User");
 const Conversation = require("./model/Conversation");
-const { createEvent } = require("./controllers/eventsController");
 const http = require("http").createServer(app);
 const imageRoutes = require("./controllers/pictureController");
 const filesRoutes = require("./controllers/filesController");
+const Course = require("./model/Course");
 const io = require("socket.io")(http, {
   cors: {
     origin: ["http://localhost:3000", "https://admin.socket.io"],
     methods: ["GET", "POST"],
     credentials: true,
   },
-  path: "/socket",
 });
-const crypto = require("crypto");
-const { GridFsStorage } = require("multer-gridfs-storage");
-const Grid = require("gridfs-stream");
-const methodOverride = require("method-override");
-const multer = require("multer");
 
 const PORT = process.env.PORT || 3500;
 const socketIOPort = process.env.SOCKETIO_PORT || 4000;
@@ -66,6 +60,7 @@ app.use("/register", require("./routes/register"));
 app.use("/auth", require("./routes/auth"));
 app.use("/refresh", require("./routes/refresh"));
 app.use("/logout", require("./routes/logout"));
+app.use("/reset-password", require("./routes/reset-password"));
 
 app.use(verifyJWT);
 app.use("/users", require("./routes/api/users"));
@@ -74,6 +69,7 @@ app.use("/conversations", require("./routes/api/conversations"));
 app.use("/events", require("./routes/api/events"));
 app.use("/profile-picture", imageRoutes);
 app.use("/files", filesRoutes);
+app.use("/admin", require("./routes/api/admin"));
 
 app.all("*", (req, res) => {
   res.status(404);
@@ -94,9 +90,6 @@ connection.once("open", () => {
   http.listen(PORT, () => {
     console.log(`HTTP server listening on port ${PORT}`);
   });
-  const gfs = Grid(connection.db, mongoose.mongo);
-  gfs.collection = "uploads";
-  module.exports.gfs = gfs;
 });
 
 const users = {};
@@ -104,30 +97,67 @@ const users = {};
 io.on("connection", (socket) => {
   console.log("A user connected", socket.id);
 
-  socket.on("register", (userId) => {
-    users[userId] = socket.id;
+  socket.on("join-call", async (data) => {
+    const { eventId, userId } = data;
+    console.log("User:", userId, "joins event:", eventId);
 
-    for (const otherUserId in users) {
-      if (otherUserId !== userId) {
-        io.to(socket.id).emit("otherUserRegistered", otherUserId);
-      }
-    }
+    const course = await Course.findOne({
+      "events._id": eventId,
+    }).exec();
 
-    for (const otherUserId in users) {
-      if (otherUserId !== userId) {
-        io.to(users[otherUserId]).emit("otherUserRegistered", userId);
+    if (course) {
+      const event = course.events.id(eventId);
+      if (event) {
+        event.inCall.push(userId);
+        await course.save();
       }
     }
   });
 
+  socket.on("leave-call", async (data) => {
+    const { eventId, userId } = data;
+    console.log("User:", userId, "leaves event:", eventId);
+
+    const course = await Course.findOne({
+      "events._id": eventId,
+    }).exec();
+
+    if (course) {
+      const event = course.events.id(eventId);
+      if (event) {
+        event.inCall = event.inCall.filter((id) => id.toString() !== userId);
+        await course.save();
+      }
+    }
+  });
+
+  socket.on("leave-all", async (data) => {
+    const { userId } = data;
+    console.log("User:", userId, "leaves all calls");
+    await Course.updateMany(
+      { "events.inCall": userId },
+      { $pull: { "events.$.inCall": userId } }
+    );
+  });
+
+  socket.on("user-connected", async (userId) => {
+    const user = await User.findById(userId).exec();
+
+    user.socket = socket.id;
+
+    await user.save();
+  });
+
   socket.on("join-conversation", async (conversationId) => {
     // Join the user to the conversation\
-    socket.join(conversationId);
-    console.log(`User joined conversation ${conversationId}`);
+    if (conversationId) {
+      socket.join(conversationId);
+      console.log(`User joined conversation ${conversationId}`);
 
-    const conversation = await Conversation.findById(conversationId);
-    const messages = conversation.messages;
-    io.to(conversationId).emit("conversation-messages", messages);
+      const conversation = await Conversation.findById(conversationId);
+      const messages = conversation.messages;
+      io.to(conversationId).emit("conversation-messages", messages);
+    }
   });
 
   socket.on("leave-conversation", ({ conversation }) => {
@@ -164,7 +194,20 @@ io.on("connection", (socket) => {
     console.log("User left course:", course);
   });
 
-  socket.on("disconnect", () => {
+  socket.on("disconnect", async (socket) => {
+    const user = await User.findOne({ socket: socket.id }).exec();
+
+    if (user) {
+      await Course.updateMany(
+        { "events.inCall": user._id },
+        { $pull: { "events.$.inCall": user._id } }
+      );
+
+      user.socket = null;
+
+      await user.save();
+    }
+
     console.log("A user disconnected");
   });
 });

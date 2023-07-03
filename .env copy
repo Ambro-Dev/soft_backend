@@ -1,0 +1,10 @@
+DATABASE_URI=mongodb+srv://admin:rtVMkg58pgg-GN*@cluster0.tpjqxfb.mongodb.net/?retryWrites=true&w=majority
+MONGO_URI=mongodb+srv://admin:rtVMkg58pgg-GN*@cluster0.tpjqxfb.mongodb.net/udDB
+DB_NAME=udDB
+STORAGE_PATH=public/storage
+NODE_ENV=development
+ACCESS_TOKEN_SECRET=piotr
+REFRESH_TOKEN_SECRET=kludia
+PORT=5000
+MAILER_USER=mailer@office.wsm.warszawa.pl
+MAILER_PASSWORD==s(k=%K*/<

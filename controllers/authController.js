@@ -1,6 +1,7 @@
 const User = require("../model/User");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const LoginCount = require("../model/LoginCount");
 
 const handleLogin = async (req, res) => {
   const { email, password } = req.body;
@@ -19,7 +20,6 @@ const handleLogin = async (req, res) => {
     const name = foundUser.name;
     const surname = foundUser.surname;
     const picture = foundUser.picture;
-    const studentNumber = foundUser.studentNumber;
     // create JWTs
     const accessToken = jwt.sign(
       {
@@ -38,7 +38,7 @@ const handleLogin = async (req, res) => {
     );
     // Saving refreshToken with current user
     foundUser.refreshToken = refreshToken;
-    const result = await foundUser.save();
+    await foundUser.save();
 
     // Creates Secure Cookie with refresh token
     res.cookie("jwt", refreshToken, {
@@ -48,8 +48,31 @@ const handleLogin = async (req, res) => {
       maxAge: 24 * 60 * 60 * 1000,
     });
 
+    const currentDate = new Date();
+    const truncatedDate = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth(),
+      currentDate.getDate(),
+      8,
+      0,
+      0,
+      0
+    );
+
+    LoginCount.findOneAndUpdate(
+      { date: truncatedDate },
+      { $inc: { count: 1 } },
+      { upsert: true, new: true }
+    )
+      .then((countDoc) => {
+        console.log(
+          `Updated login count for ${countDoc.date}: ${countDoc.count}`
+        );
+      })
+      .catch((err) => console.log(err));
+
     // Send authorization roles and access token to user
-    res.json({ id, name, surname, roles, studentNumber, accessToken, picture });
+    res.json({ id, name, surname, roles, accessToken, picture });
   } else {
     res.sendStatus(401);
   }
