@@ -20,9 +20,12 @@ const filesRoutes = require("./controllers/filesController");
 const Course = require("./model/Course");
 const io = require("socket.io")(http, {
   cors: {
-    origin: ["http://localhost:3000", "https://admin.socket.io"],
+    origin: ["https://soft.ambro.dev", "https://www.soft.ambro.dev"],
     methods: ["GET", "POST"],
     credentials: true,
+  },
+  socket: {
+    path: "/socket.io",
   },
 });
 
@@ -52,24 +55,24 @@ app.use(express.json());
 app.use(cookieParser());
 
 //serve static files
-app.use("/", express.static(path.join(__dirname, "/public")));
+app.use("/api", express.static(path.join(__dirname, "/public")));
 
 // routes
-app.use("/", require("./routes/root"));
-app.use("/register", require("./routes/register"));
-app.use("/auth", require("./routes/auth"));
-app.use("/refresh", require("./routes/refresh"));
-app.use("/logout", require("./routes/logout"));
-app.use("/reset-password", require("./routes/reset-password"));
+app.use("/api", require("./routes/root"));
+app.use("/api/register", require("./routes/register"));
+app.use("/api/auth", require("./routes/auth"));
+app.use("/api/refresh", require("./routes/refresh"));
+app.use("/api/logout", require("./routes/logout"));
+app.use("/api/reset-password", require("./routes/reset-password"));
 
 app.use(verifyJWT);
-app.use("/users", require("./routes/api/users"));
-app.use("/courses", require("./routes/api/courses"));
-app.use("/conversations", require("./routes/api/conversations"));
-app.use("/events", require("./routes/api/events"));
-app.use("/profile-picture", imageRoutes);
-app.use("/files", filesRoutes);
-app.use("/admin", require("./routes/api/admin"));
+app.use("/api/users", require("./routes/api/users"));
+app.use("/api/courses", require("./routes/api/courses"));
+app.use("/api/conversations", require("./routes/api/conversations"));
+app.use("/api/events", require("./routes/api/events"));
+app.use("/api/profile-picture", imageRoutes);
+app.use("/api/files", filesRoutes);
+app.use("/api/admin", require("./routes/api/admin"));
 
 app.all("*", (req, res) => {
   res.status(404);
