@@ -1,17 +1,16 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-mongoose.set('strictQuery', false);
+mongoose.set("strictQuery", false);
 
 const connectDB = async () => {
-    try {
-        await mongoose.connect(process.env.DATABASE_URI, {
-            useUnifiedTopology: true,
-            useNewUrlParser: true,
-            dbName: process.env.DB_NAME
-        });
-    } catch (err) {
-        console.error(err);
-    }
-}
+  try {
+    await mongoose.connect(process.env.DATABASE_URI, {
+      useUnifiedTopology: true,
+      useNewUrlParser: true,
+    });
+  } catch (err) {
+    console.error(err);
+  }
+};
 
-module.exports = connectDB
+module.exports = connectDB;

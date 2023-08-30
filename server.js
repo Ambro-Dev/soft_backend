@@ -15,12 +15,19 @@ const connectDB = require("./config/dbConn");
 const User = require("./model/User");
 const Conversation = require("./model/Conversation");
 const http = require("http").createServer(app);
+const bcrypt = require("bcrypt");
+const readline = require("readline");
 const imageRoutes = require("./controllers/pictureController");
 const filesRoutes = require("./controllers/filesController");
 const Course = require("./model/Course");
 const io = require("socket.io")(http, {
   cors: {
-    origin: ["https://soft.ambro.dev", "https://www.soft.ambro.dev"],
+    origin: [
+      "http://localhost:3000",
+      "https://future.mans.org.pl",
+      "https://www.future.mans.org.pl",
+      "http://localhost",
+    ],
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -88,14 +95,71 @@ app.use(errorHandler);
 
 const connection = mongoose.connection;
 
-connection.once("open", () => {
-  console.log("Connected to MongoDB");
-  http.listen(PORT, () => {
-    console.log(`HTTP server listening on port ${PORT}`);
-  });
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
 });
 
-const users = {};
+connection.once("open", async () => {
+  console.log("Connected to MongoDB");
+
+  const admin = await User.findOne({ email: "admin@mans.org.pl" }).exec();
+
+  if (!admin) {
+    let password = "";
+
+    while (password.length < 16 || !isStrongPassword(password)) {
+      password = await new Promise((resolve) => {
+        rl.question(
+          "Enter admin password (min length 16 characters, at least one uppercase, one lowercase, one digit, and one special character): ",
+          (answer) => {
+            resolve(answer);
+          }
+        );
+      });
+
+      if (password.length < 16) {
+        console.log(
+          "Password too short. Please enter a password with at least 16 characters."
+        );
+      } else if (!isStrongPassword(password)) {
+        console.log(
+          "Password does not meet complexity requirements. Please include at least one uppercase letter, one lowercase letter, one digit, and one special character."
+        );
+      }
+    }
+
+    const hashedPwd = await bcrypt.hash(password, 10);
+
+    const adminUser = await User.create({
+      email: "admin@mans.org.pl",
+      password: hashedPwd,
+      name: "Admin",
+      surname: "Admin",
+      roles: { Admin: 1001 },
+    });
+
+    await adminUser.save();
+
+    console.log("Admin user created");
+
+    http.listen(PORT, () => {
+      console.log(`HTTP server listening on port ${PORT}`);
+    });
+  } else {
+    http.listen(PORT, () => {
+      console.log(`HTTP server listening on port ${PORT}`);
+    });
+  }
+
+  rl.close(); // Close the readline interface
+});
+
+function isStrongPassword(password) {
+  const passwordRegex =
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!#%*?&])[A-Za-z\d@$#!%*?&]+$/;
+  return passwordRegex.test(password);
+}
 
 io.on("connection", (socket) => {
   console.log("A user connected", socket.id);
